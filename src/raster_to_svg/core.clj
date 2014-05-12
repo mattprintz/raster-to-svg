@@ -20,14 +20,15 @@
   (let [
     radius (* value (/ block-size 2))
   ]
-    (format "<circle cx=\"%d\" cy=\"%d\" r=\"%f\" />" x y (float radius))
+    (str "<circle cx=\"" x "\" cy=\"" y "\" r=\"" radius "\" />")
   )
 )
 
 (defn build-svg [svg-fn block-values]
+  (time( println "Count: " (count block-values)))
   (str
     "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<svg baseProfile=\"tiny\" version=\"1.2\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
-    (apply str (map svg-fn (filter (fn [a] (> (:value a))) block-values)))
+    (time (apply str (map svg-fn (filter (fn [a] (> (:value a))) block-values))))
     ;(apply str (pmap svg-fn (filter (fn [a] (> (:value a))) block-values)))
     ;(apply str (for [block block-values :when (> (:value block) 0.1)] (svg-fn block)))
     "</svg>"
@@ -35,14 +36,16 @@
 )
 
 (defn save-svg [data-string]
-  (spit "/home/mprintz/test.svg" data-string)
+  (println "saving")
+  (time (spit "/home/mprintz/test.svg" data-string))
 )
 
 (defn get-blocks [pixels block-size width height]
   (let [
-    rows (partition width width (for [ii (range width)] `(255 255 255 nil)) pixels)
+    empty-block (take block-size (repeat `(255 255 255 nil)))
+    rows (partition width width (take width (repeat`(255 255 255 nil))) pixels)
     ;; Got to be a better way to create a list of num elements, but the for fuction works
-    row-sets (for [row rows] (partition block-size block-size (for [_ (range block-size)] `(255 255 255 nil)) row))
+    row-sets (for [row rows] (partition block-size block-size empty-block row))
     blocks (for [x (range (count (first row-sets))) y (range 0 (count row-sets) block-size) ]
       (let [
             pixels (apply concat (for [row (range y (+ y block-size))] (nth (nth row-sets y) x)))
@@ -51,14 +54,15 @@
         {
           :x (* x block-size)
           :y y
-          :pixels pixels
+          ;:pixels pixels
           :value value
           :block-size block-size
         }
       )
     )
   ]
-  blocks
+  (println "Vectorizing")
+  (time (vec blocks))
   )
 )
 
