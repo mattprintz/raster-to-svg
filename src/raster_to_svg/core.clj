@@ -5,37 +5,12 @@
   (:require [clojure.math.numeric-tower :as math])
 )
 
-(defn get-pixels-for-block [raster block-x block-y block-size]
-  (for [x (range (* block-x block-size) (* (inc block-x) block-size))
-        y (range (* block-y block-size) (* (inc block-y) block-size))]
-    (try 
-      (.getPixel raster x y nil)
-      (catch Exception e `(255 255 255 255))
-    )
-    ))
-
 (defn pixel-value [[r g b a]] ; Destructuring
-    (* (/ (+ r g b) 3) (if (nil? a) 1 (/ a 255.0)))
- )
+  (* (/ (+ r g b) 3) (if (nil? a) 1 (/ a 255.0)))
+)
 
 (defn block-value [values]
   (- 1 (/ (reduce + values) (count values) 255))
-)
-
-(defn process-block [raster block-x block-y block-size]
- (let [
-  block-mid (/ block-size 2)
-  pixels (get-pixels-for-block raster block-x, block-y, block-size)
-  pixel-values (for [pixel pixels] (pixel-value pixel))
- ]
-  ;(print block-x " " block-y "\n")
-  {
-    :x (+ (* block-x block-size) block-mid)
-    :y (+ (* block-y block-size) block-mid)
-    :value (block-value pixel-values)
-    :block-size block-size
-  }
- )
 )
 
 (defn svg-circle [{x :x
@@ -63,18 +38,43 @@
   (spit "/home/mprintz/test.svg" data-string)
 )
 
+(defn get-blocks [pixels block-size width height]
+  (let [
+    rows (partition width width (for [ii (range width)] `(255 255 255 nil)) pixels)
+    ;; Got to be a better way to create a list of num elements, but the for fuction works
+    row-sets (for [row rows] (partition block-size block-size (for [_ (range block-size)] `(255 255 255 nil)) row))
+    blocks (for [x (range (count (first row-sets))) y (range 0 (count row-sets) block-size) ]
+      (let [
+            pixels (apply concat (for [row (range y (+ y block-size))] (nth (nth row-sets y) x)))
+            value (block-value (map pixel-value pixels))
+        ]
+        {
+          :x (* x block-size)
+          :y y
+          :pixels pixels
+          :value value
+          :block-size block-size
+        }
+      )
+    )
+  ]
+  blocks
+  )
+)
+
 (defn process-image [filename]
   (let [
         block-size 8
         imagefile (clojure.java.io/as-file filename)
-        raster (.getData (. ImageIO read imagefile))
-        width-in-blocks (math/ceil (/ (.getWidth raster) block-size))
-        height-in-blocks (math/ceil (/ (.getHeight raster) block-size))
-        block-coords (for [x (range width-in-blocks) y (range height-in-blocks)] [x y])
-        values (map (fn [[x y]] (process-block raster x y block-size)) block-coords)
-        svg-data (build-svg svg-circle values)
+        image-raster (. ImageIO read imagefile)
+        raster (.getData image-raster)
+        width (.getWidth image-raster)
+        height (.getHeight image-raster)
+        pixel-data-array (.getPixels raster 0 0 width height #^ints (identity nil))
+        pixels (partition (.getNumBands raster) pixel-data-array)
+        blocks (get-blocks pixels block-size width height)
+        svg-data (build-svg svg-circle blocks)
       ]
-      
       (save-svg svg-data)
     )
   )
