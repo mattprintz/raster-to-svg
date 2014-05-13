@@ -5,6 +5,8 @@
   (:require [clojure.math.numeric-tower :as math])
 )
 
+(def nil-pixel '(255, 255, 255, nil))
+
 (defn pixel-value [[r g b a]] ; Destructuring
   (* (/ (+ r g b) 3) (if (nil? a) 1 (/ a 255.0)))
 )
@@ -40,29 +42,47 @@
   (time (spit "/home/mprintz/test.svg" data-string))
 )
 
-(defn get-blocks [pixels block-size width height]
+(defn get-block [pixels block-size width height offset]
   (let [
-    empty-block (take block-size (repeat `(255 255 255 nil)))
-    rows (partition width width (take width (repeat`(255 255 255 nil))) pixels)
-    ;; Got to be a better way to create a list of num elements, but the for fuction works
-    row-sets (for [row rows] (partition block-size block-size empty-block row))
-    blocks (for [x (range (count (first row-sets))) y (range 0 (count row-sets) block-size) ]
-      (let [
-            pixels (apply concat (for [row (range y (+ y block-size))] (nth (nth row-sets y) x)))
-            value (block-value (map pixel-value pixels))
-        ]
-        {
-          :x (* x block-size)
-          :y y
-          ;:pixels pixels
-          :value value
-          :block-size block-size
-        }
-      )
-    )
+    y (* (int (/ (mod (int (/ offset width)) width) block-size)) block-size)
+    x (mod (int (/ offset block-size)) width)
+    out-of-bound  (fn [pixel-offset y-offset] false)
+    block-pixels-1 (time (vec (apply concat (for [y_i (range block-size) ] (let
+        [ range_offset (+ offset (* y_i width)) ]
+        (drop range_offset (take (+ range_offset block-size) pixels))
+      ))) ))
+    ;block-pixels-2 (time (vec (for [y_i (range block-size) x_i (range block-size)] (let
+    ;    [ pixel_offset (+(+ offset x_i) (* y_i width)) ]
+    ;    (nth pixels pixel_offset)
+    ;    )) ))
+    value (block-value (map pixel-value block-pixels-1))
   ]
-  (println "Vectorizing")
-  (time (vec blocks))
+    (println "a: " offset " : " block-pixels-1)
+    ;(println "b: " offset " : " block-pixels-2)
+    {
+      :x (+ x (/ block-size 2))
+      :y (+ y (/ block-size 2))
+      ;:pixels block-pixels
+      :value value
+      :block-size block-size
+    }
+  )
+)
+
+(defn get-blocks [pixels block-size width height]
+    ;    {
+    ;      :x (* x block-size)
+    ;      :y y
+    ;      ;:pixels pixels
+    ;      :value value
+    ;      :block-size block-size
+    ;    }
+  (let [
+    offsets (range 0 (* width height) (* block-size block-size))
+    ;partitioned-offsets (partition 6 offsets)
+  ]
+    ;(apply concat (pmap (fn [s-offsets] (map (fn [s-offset] (get-block pixels block-size width height s-offset)) s-offsets)) partitioned-offsets))
+    (map (fn [offset] (get-block pixels block-size width height offset)) offsets)
   )
 )
 
@@ -79,10 +99,17 @@
         blocks (get-blocks pixels block-size width height)
         svg-data (build-svg svg-circle blocks)
       ]
+      ;(println
+        ;(first blocks)
+      ;)
+      ;(println
+      ;  (second blocks)
+      ;)
+      ;(vec blocks)
       (save-svg svg-data)
     )
   )
 
 (defn -main [& args]
-  (process-image (first args))
+  (time (process-image (first args)))
 )
