@@ -6,13 +6,21 @@
 )
 
 (defn get-pixels-for-block [raster block-x block-y block-size]
-  (for [x (range (* block-x block-size) (* (inc block-x) block-size))
-        y (range (* block-y block-size) (* (inc block-y) block-size))]
-    (try 
-      (.getPixel raster x y nil)
-      (catch Exception e `(255 255 255 255))
-    )
-    ))
+  (let [x (* block-x block-size)
+        y (* block-y block-size)
+        width (.getWidth raster)
+        height (.getHeight raster)
+      ]
+    (partition (.getNumBands raster) (.getPixels raster x y (min block-size (- width x)) (min block-size (- height y)) #^ints (identity nil)))
+  )
+  ;(for [x (range (* block-x block-size) (* (inc block-x) block-size))
+  ;      y (range (* block-y block-size) (* (inc block-y) block-size))]
+  ;  (try 
+  ;    (.getPixel raster x y nil)
+  ;    (catch Exception e `(255 255 255 255))
+  ;  )
+  ;  ))
+)
 
 (defn pixel-value [[r g b a]] ; Destructuring
     (* (/ (+ r g b) 3) (if (nil? a) 1 (/ a 255.0)))
@@ -45,16 +53,16 @@
   (let [
     radius (* value (/ block-size 2))
   ]
-    (format "<circle cx=\"%d\" cy=\"%d\" r=\"%f\" />" x y (float radius))
+    (format "<circle cx=\"%f\" cy=\"%f\" r=\"%f\" />" (float x) (float y) (float radius))
   )
 )
 
 (defn build-svg [svg-fn block-values]
   (str
     "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<svg baseProfile=\"tiny\" version=\"1.2\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
-    (apply str (map svg-fn (filter (fn [a] (> (:value a))) block-values)))
+    ;(apply str (map svg-fn (filter (fn [a] (> (:value a))) block-values)))
     ;(apply str (pmap svg-fn (filter (fn [a] (> (:value a))) block-values)))
-    ;(apply str (for [block block-values :when (> (:value block) 0.1)] (svg-fn block)))
+    (apply str (for [block block-values :when (> (:value block) 0.1)] (svg-fn block)))
     "</svg>"
   )
 )
@@ -65,7 +73,7 @@
 
 (defn process-image [filename]
   (let [
-        block-size 8
+        block-size 3
         imagefile (clojure.java.io/as-file filename)
         raster (.getData (. ImageIO read imagefile))
         width-in-blocks (math/ceil (/ (.getWidth raster) block-size))
@@ -80,5 +88,5 @@
   )
 
 (defn -main [& args]
-  (process-image (first args))
+  (time (process-image (first args)))
 )
